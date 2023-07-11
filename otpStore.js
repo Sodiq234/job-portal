@@ -1,7 +1,7 @@
-const otps = [
+const otpStore = [
     //otpId,
     //otp,
     //email,
     //date
 ]
-module.exports = otps;
+module.exports = otpStore;

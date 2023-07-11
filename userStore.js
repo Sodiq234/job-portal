@@ -1,4 +1,4 @@
-const users = [
+let userStore = [
     //id
     //firstname
     //lastname,
@@ -9,4 +9,4 @@ const users = [
     //status
 ];
 
-module.exports = users;
+module.exports = userStore;
