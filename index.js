@@ -3,8 +3,9 @@ const express = require("express");
 const app = express();
 const port = process.env.PORT;
 const Joi = require('joi');
-const users = require('./userStore')
+const users = require('./userStore.js')
 const { v4: uuidv4 } = require('uuid');
+const otps = require('./otpStore.js')
 
 
 app.get('/', (req,res) => {
@@ -44,6 +45,7 @@ app.post('/signup', (req,res) => {
         })
     };
 
+    // To create the user
     const tempUser = {
         id: uuidv4(),
         firstname,
@@ -53,7 +55,28 @@ app.post('/signup', (req,res) => {
         password,
         status: "Inactive",
         registeredDate: new Date()
+    };
+    // To send the created into the user store or database
+    users.push(tempUser);
+
+     // To generate a random OTP
+    const otp = Math.floor( 10000 + Math.random() * 90000 );
+
+    // Creats a temp store for the otp
+
+    const tempOtp = {
+         otpId: uuidv4(),
+         otp,
+         email,
+         date: new Date()
     }
+
+
+
+    // We keep the OTP in a container
+    otps.push(tempOtp)
+
+
 
 })
 
