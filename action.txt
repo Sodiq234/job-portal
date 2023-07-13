@@ -1,0 +1,61 @@
+-----Action Plans for Job Application Portal------
+
+   - User can signup 
+       - id:
+            lastname:
+            firstname:
+            email:
+            phone:
+            password:
+            status : in-active
+            registeredData
+ 
+   - User receieves Otp
+   - User verifies Otp
+   - User is sent a Welcome Email
+   - User can login
+   - User logins with Email/Phone and Password
+   - User can See all available jobs
+   - User Can Filter all Job type
+   - User can apply for a job
+
+   - 
+   - User Track Job Application
+   - Admin get all applications
+   - Admin can update application status [ submitted , processing, accepted, rejected], and the users get email at each stage
+   
+
+
+   const userStore = [
+         {
+            id:
+            lastname:
+            firstname:
+            email:
+            phone:
+            password:
+            registeredData
+         }
+]
+const otpStore = [
+         {
+            id:
+            otp:
+            email:
+            date
+         }
+]
+
+
+const JobApplicationStore =[
+   {
+      fullname: "",
+      address: "",
+      email: ""
+      jobId: ""
+      yearsOfExperiece: "",
+      qualifications: "",
+      status: 
+
+   }
+]

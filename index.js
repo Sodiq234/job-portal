@@ -3,19 +3,20 @@ const express = require("express");
 const app = express();
 const bodyParser = require('body-parser')
 const port = process.env.PORT;
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 const Joi = require('joi');
-//const userStore = require('./userStore.js');
+const axios = require('axios'); 
+let userStore = require('./userStore.js');
 const { v4: uuidv4 } = require('uuid');
-//const otpStore = require('./otpStore.js');
+const otpStore = require('./otpStore.js');
 const sgMail = require('@sendgrid/mail');
+const authorization = require("./authorization.js");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
 app.use(bodyParser.json())
 
-
-let userStore = [];
-
-const otpStore = [];
-
+const jobApplicationStore = [];
 
 app.get('/', (req,res) => {
     res.json({
@@ -24,7 +25,7 @@ app.get('/', (req,res) => {
     })
 });
 
-app.post('/signup', (req,res) => {
+app.post('/signup', async(req,res) => {
 
     const signUpSchema = Joi.object({
         firstname: Joi.string().required(),
@@ -56,6 +57,24 @@ app.post('/signup', (req,res) => {
     return 
     };
 
+    const responseSalt = await bcrypt.genSalt(saltRounds);
+    
+    if (!responseSalt){
+        res.status(500).json({
+            status: false,
+            message: 'Sorry , you canaot login this time, try again later'
+        })
+    }
+    const responseHash = await bcrypt.hash(password, responseSalt);
+
+    if (!responseHash){
+        res.status(500).json({
+            status: false,
+            message: 'Sorry , you canaot login this time, try again later'
+        })
+    }
+         
+
     // To create the user
     const tempUser = {
         id: uuidv4(),
@@ -63,7 +82,8 @@ app.post('/signup', (req,res) => {
         lastname,
         email,
         phone,
-        password,
+        salt:responseSalt,
+        password: responseHash,
         status: "Inactive",
         registeredDate: new Date()
     };
@@ -149,12 +169,239 @@ app.get('/verify-otp/:email/:otp', (req,res) => {
         status: true,
         message: "Welcome on board. Your registration is successful"
     });
+});
+
+
+app.get('/resend-otp/:email', (req,res) => {
+
+    const { email } =req.params;
+
+    if (!email){
+        res.status(400).json({
+            status: false,
+            message: 'Email is required'
+        })
+    return
+    };
+
+    isEmailAlready = userStore.find(data => data.email === email);
+
+    if (!isEmailAlready){
+        res.status(400).json({
+            status: false,
+            message: 'Account does not exist'
+        })
+    return
+    };
+
+    const otp = generateOtp();
+    const tempOtp = {
+        otpId: uuidv4(),
+        otp,
+        email,
+        date: new Date()
+   }
+   // We keep the OTP in a container
+   otpStore.push(tempOtp)
+
+   sendEmail(email, 'OTP resent', `Hello ${firstname} ${lastname}, Please use ${otp} to enable your signup completion`) 
+
+   res.status(201).json({
+       status: true,
+       message: "You are almost there, Use the OTP sent for complete signup",
+       userStore
+   });
+
 })
 
-app.get('/customer', (req,res) => {
+
+app.post('/login', async(req,res) => {
+
+    const loginSchema = Joi.object({
+        emailOrPhone: Joi.string().required(),
+        password: Joi.string().required()
+    });
+
+    const { emailOrPhone, password } = req.body;
+    const { error , value } = loginSchema.validate(req.body);
+
+    if (error !== undefined){
+        res.status(400).json({
+            status: false,
+            message: error.details[0].message
+        })
+       return
+    };
+
+    const userExist = userStore.find(data => data.email === emailOrPhone || data.phone === emailOrPhone);
+
+    if (!userExist){
+        res.status(400).json({
+            status: false,
+            message: "Invalid email or password"
+        })
+        return 
+    }
+
+    const responseHash = await bcrypt.hash(password, userExist.salt);
+
+    if (!responseHash){
+        res.status(500).json({
+            status: false,
+            message: 'Sorry , you cannot login this time, try again later'
+        })
+    };
+
+    if (responseHash !== userExist.password){
+        res.status(400).json({
+            status: false,
+            message: 'Invalid email or password'
+        })
+        return
+    };
+
+    if (userExist.status !== 'active'){
+        res.status(400).json({
+            status: false,
+            message: 'Account verification pending'
+        })
+        return 
+    };
+
+    res.status(200).json({
+        status: true,
+        message: 'You are logged in successfully'
+    });
+})
+
+
+
+app.get('/jobs', async (req,res) => {
 
     const { apikey } = req.headers;
-    if(!apikey || apikey !== process.env.API_KEY){
+    const length = req.query.length || 10;
+    const category = req.query.category || '';
+    const company = req.query.company || '';
+
+    const response = authorization(apikey)
+    if (!response){
+        res.status(401).json({
+            status: false,
+            message: 'Unathourised'
+        })
+        return
+    };
+
+   const result = await axios({
+        method: 'get',
+        url: `${process.env.REMOTE_API_BASEURL}/remote-jobs?limit=${length}&category=${category}&company_name=${company}`
+      });
+
+    res.status(200).json({
+        status: true,
+        count: result.data.jobs.length,
+        data: result.data.jobs  
+    })
+});
+
+app.get('/jobs/categories', async (req,res) => {
+
+    const response = await axios({
+        method: 'get',
+        url: `${process.env.REMOTE_API_BASEURL}/remote-jobs`
+      });
+
+    const responseJobs = response.data.jobs;
+
+    const jobsCategories = responseJobs.map(items => items.category)
+
+     // function to help remove duplicates in the Array
+
+    // function removeDuplicates(arr) {
+        //return Array.from(new Set(arr));
+      //};
+
+    function removeDuplicates(arr) {
+       return arr.filter((element, index) => arr.indexOf(element) === index);
+    }
+      
+    const uniqueJobsCategories = removeDuplicates(jobsCategories)
+
+    res.status(200).json({
+        status: true,
+        data: uniqueJobsCategories
+    });
+});
+
+app.post('/jobs/apply', async(req,res) => {
+
+    const { fullname, address, email, jobId, yearsOfExperiece, qualifications, status } = req.body;
+
+    const jobLoginSchema = Joi.object({
+        fullname: Joi.string().required(),
+        address: Joi.string().required(),
+        email: Joi.string().email().required(),
+        yearsOfExperiece: Joi.string().required(),
+        qualifications: Joi.string().required().valid('SSCE', 'BSc', 'MSc', 'PhD'),
+        jobId: Joi.string().required(),
+        status:Joi.string().required()
+    });
+
+    const { value, error } = jobLoginSchema.validate(req.body);
+
+    if (error !== undefined){
+        res.status(400).json({
+            status: false,
+            message: error.details[0].message
+        })
+    return
+    };
+
+    const response = await axios({
+     method: 'get',
+     url: `${process.env.REMOTE_API_BASEURL}/remote-jobs`
+    });
+
+   const responseJobs = response.data.jobs;
+    
+   const remotiveJobId = responseJobs.map( item => item.id );
+
+   const checkId = remotiveJobId.includes(parseInt(jobId));
+
+   if (!checkId){
+       res.status(200).json({
+           status: false,
+           message:'Invalid job Id'
+     })
+    return
+   };
+
+    const tempJob = {
+      fullname,
+      address,
+      email,
+      jobId,
+      yearsOfExperiece,
+      qualifications,
+      status: 'submitted'
+    };
+
+    jobApplicationStore.push(tempJob);
+
+    sendEmail(email, 'Job Application Update', 'Your job application is submitted successfully.')
+
+    res.status(200).json({
+        status: true,
+        message: 'Application submission successful'
+    }) 
+})
+
+app.get('/admin/customers', (req,res) => {
+
+    const { apikey } = req.headers;
+    const response = authorization(apikey);
+
+    if (!response){
         res.status(401).json({
             status: false,
             message: 'Unathourised'
@@ -167,7 +414,8 @@ app.get('/customer', (req,res) => {
         message: 'These are all of our customers',
         userStore
     });
-})
+});
+
 
 // Helpers Function : To avoid repeat of the functions in various aspect of the code
 const generateOtp = () => {
