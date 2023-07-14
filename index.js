@@ -17,6 +17,8 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 app.use(bodyParser.json())
 
 const jobApplicationStore = [];
+const jobStore = [];
+
 
 app.get('/', (req,res) => {
     res.json({
@@ -313,7 +315,10 @@ app.get('/jobs/categories', async (req,res) => {
 
     const responseJobs = response.data.jobs;
 
+    
+
     const jobsCategories = responseJobs.map(items => items.category)
+    
 
      // function to help remove duplicates in the Array
 
@@ -358,15 +363,12 @@ app.post('/jobs/apply', async(req,res) => {
     };
 
     const response = await axios({
-     method: 'get',
-     url: `${process.env.REMOTE_API_BASEURL}/remote-jobs`
-    });
+        method: 'get',
+        url: `${process.env.REMOTE_API_BASEURL}/remote-jobs`
+      });
 
    const responseJobs = response.data.jobs;
-    
-   const remotiveJobId = responseJobs.map( item => item.id );
-
-   const checkId = remotiveJobId.includes(parseInt(jobId));
+   const checkId = responseJobs.find( item => item.id  === parseInt(jobId));
 
    if (!checkId){
        res.status(200).json({
@@ -394,7 +396,103 @@ app.post('/jobs/apply', async(req,res) => {
         status: true,
         message: 'Application submission successful'
     }) 
+});
+
+app.get('/jobs/application-status/:email/:jobId' , (req,res) => {
+
+    const { email, jobId } = req.params;
+
+    if (!email){
+        res.status(400).json({
+            status: false,
+            message:'Email is required'
+        })
+    return
+    };
+
+    const userExist = jobApplicationStore.find( item => item.email === email || item.id === jobId );
+    if (!userExist){
+        res.status(400).json({
+            status: false,
+            message:'Hello user, You have not applied for any job yet. Kindly apply for a job today'
+        })
+    return
+    };
+
+    applicationStatus = userExist.status
+
+    res.status(400).json({
+        status: true,
+        message: "Your job application is found",
+        data: applicationStatus
+    })
+});
+
+app.put('/admin/applicationStatus/update/:email/:jobId/:status' , (req,res) => {
+
+    const { apikey } = req.headers;
+    const { email, jobId, status } =req.params;
+    const response = authorization(apikey);
+
+    if (!response){
+        res.status(401).json({
+            status: false,
+            message: 'Unathourised'
+        })
+        return
+    };
+
+    const applicationExist = jobApplicationStore.find(item => item.email === email || item.id === jobId)
+
+    if (!applicationExist){
+        res.status(400).json({
+            status: false,
+            message: "No job application for this person"
+        })
+        return
+    };
+
+    applicationExist.status = status;
+
+
+    sendEmail( email, "Application status update", `Hello your application status is now on ${status}. If there is further update we would inform you.` )
+
+    res.status(200).json({
+        status: true,
+        message: "updated",
+        data: jobApplicationStore
+    })
+});
+
+app.get('/jobs/myApplications/:email', (req,res) => {
+
+    const { email } = req.params;
+
+    if (!email){
+        res.status(400).json({
+            status:false,
+            message: 'Invalid email'
+        })
+    return
+    };
+
+    const allJobApplication = jobApplicationStore.filter(item => item.email === email);
+
+    if (!allJobApplication){
+        res.status(400).json({
+            status: false,
+            message: "These paage does not exist "
+        })
+    return
+    };
+
+    res.status(200).json({
+        status: true,
+        message: "These are your job applications",
+        data: allJobApplication
+    })
 })
+
 
 app.get('/admin/customers', (req,res) => {
 
