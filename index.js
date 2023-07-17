@@ -64,7 +64,7 @@ app.post('/signup', async(req,res) => {
     if (!responseSalt){
         res.status(500).json({
             status: false,
-            message: 'Sorry , you canaot login this time, try again later'
+            message: 'Sorry , you cannot login this time, try again later'
         })
     }
     const responseHash = await bcrypt.hash(password, responseSalt);
@@ -72,7 +72,7 @@ app.post('/signup', async(req,res) => {
     if (!responseHash){
         res.status(500).json({
             status: false,
-            message: 'Sorry , you canaot login this time, try again later'
+            message: 'Sorry , you cannot login this time, try again later'
         })
     }
          
@@ -135,7 +135,7 @@ app.get('/verify-otp/:email/:otp', (req,res) => {
     if (!user){
         res.status(400).json({
             status: false,
-            message: 'Invalid OTP'
+            message: 'Invalid Email and OTP'
         })
     return
     };
@@ -419,7 +419,7 @@ app.get('/jobs/application-status/:email/:jobId' , (req,res) => {
     return
     };
 
-    applicationStatus = userExist.status
+    const applicationStatus = userExist.status
 
     res.status(400).json({
         status: true,
@@ -442,12 +442,12 @@ app.put('/admin/applicationStatus/update/:email/:jobId/:status' , (req,res) => {
         return
     };
 
-    const applicationExist = jobApplicationStore.find(item => item.email === email || item.id === jobId)
+    const applicationExist = jobApplicationStore.find(item => item.email === email && item.id === jobId)
 
     if (!applicationExist){
         res.status(400).json({
             status: false,
-            message: "No job application for this person"
+            message: "This Job was not applied for by this user"
         })
         return
     };
@@ -481,7 +481,7 @@ app.get('/jobs/myApplications/:email', (req,res) => {
     if (!allJobApplication){
         res.status(400).json({
             status: false,
-            message: "These paage does not exist "
+            message: "No job application yet! "
         })
     return
     };
@@ -535,7 +535,3 @@ sgMail.send(msg)
 app.listen(port, () => {
     console.log(`We are listening on port ${port}`);
 })
-
-
-
-
